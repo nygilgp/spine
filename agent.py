@@ -15,10 +15,24 @@ TOOLS = [
      "input_schema": {"type": "object", "properties": {"reason": {"type": "string"}}, "required": ["reason"]}},
 ]
 
+def fake_execute(name, tool_input):
+    # stub tool results — real MCP wiring comes in S4
+    return {"get_customer": {"customer_id": "C-900"},
+            "lookup_order": {"order_id": "12345", "status": "delivered", "amount": 49.0},
+            "process_refund": {"refund_id": "R-1", "status": "issued"},
+            "escalate_to_human": {"ticket": "T-1"}}.get(name, {})
+
 def run(user_msg):
     messages = [{"role": "user", "content": user_msg}]
     resp = client.messages.create(model="claude-sonnet-4-5", max_tokens=1024, tools=TOOLS, messages=messages)
-    print("stop_reason:", resp.stop_reason)   # E1.1 turns this into the real loop
+    while resp.stop_reason == "tool_use":                        # ← THE ONE RULE
+        results = [{"type": "tool_result", "tool_use_id": b.id,
+                    "content": str(fake_execute(b.name, b.input))}
+                   for b in resp.content if b.type == "tool_use"]
+        messages.append({"role": "assistant", "content": resp.content})
+        messages.append({"role": "user", "content": results})
+        resp = client.messages.create(model="claude-sonnet-4-5", max_tokens=1024, tools=TOOLS, messages=messages)
+    print("FINAL:", "".join(b.text for b in resp.content if b.type == "text"))
     return resp
 
 if __name__ == "__main__":
