@@ -35,5 +35,23 @@ def run(user_msg):
     print("FINAL:", "".join(b.text for b in resp.content if b.type == "text"))
     return resp
 
+# spine/agent.py — add a prerequisite gate around tool execution
+STATE = {"verified_customer_id": None}   # module-level case state for now
+
+def gate(name, tool_input):
+    """Block refunds until identity is verified. Returns (allowed, message)."""
+    if name == "process_refund" and not STATE["verified_customer_id"]:
+        return False, "BLOCKED: call get_customer to verify identity before any refund."
+    return True, None
+
+def guarded_execute(name, tool_input):
+    allowed, msg = gate(name, tool_input)
+    if not allowed:
+        return {"error": msg}                       # agent sees this, self-corrects
+    result = fake_execute(name, tool_input)
+    if name == "get_customer":                       # record verification in state
+        STATE["verified_customer_id"] = result.get("customer_id")
+    return result
+
 if __name__ == "__main__":
     run("I want a refund for order 12345, my email is a@b.com")
