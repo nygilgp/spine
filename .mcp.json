@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "billing": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "billing-mcp"
+      ],
+      "env": {
+        "BILLING_TOKEN": "${BILLING_TOKEN}"
+      }
+    }
+  }
+}

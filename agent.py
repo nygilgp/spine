@@ -6,13 +6,22 @@ from datetime import datetime, timezone
 
 STATUS_CODES = {1: "pending", 2: "shipped", 3: "delivered", 4: "refunded"}
 TOOLS = [
-    {"name": "get_customer", "description": "Verify a customer and return a verified customer_id. Must run before order or refund operations.",
-     "input_schema": {"type": "object", "properties": {"email": {"type": "string"}}, "required": ["email"]}},
-    {"name": "lookup_order", "description": "Retrieve order details for a verified customer_id.",
+    {"name": "get_customer", 
+     "description": "Verify a customer and return a verified customer_id. INPUT: email. "
+                    "USE WHEN: identifying/verifying a person (e.g. 'my email is a@b.com'). "
+                    "NOT for order details — use lookup_order for those. Must run before refunds.",
+     "input_schema": {"type": "object", "properties": {"email": {"type": "string"}}, "required": ["email"]}
+    },
+    {"name": "lookup_order", 
+     "description": "Retrieve order details (status, amount) for a verified customer_id. "
+                    "INPUT: customer_id + order_id. USE WHEN: the user asks about an ORDER "
+                    "(e.g. 'check order #12345'). NOT for identifying a person — use get_customer.",
      "input_schema": {"type": "object", "properties": {"customer_id": {"type": "string"}, "order_id": {"type": "string"}}, "required": ["customer_id"]}},
-    {"name": "process_refund", "description": "Issue a refund for a verified customer's order.",
+    {"name": "process_refund", 
+     "description": "Issue a refund for a verified customer's order.",
      "input_schema": {"type": "object", "properties": {"order_id": {"type": "string"}, "amount": {"type": "number"}}, "required": ["order_id", "amount"]}},
-    {"name": "escalate_to_human", "description": "Escalate to a human agent with a structured handoff summary.",
+    {"name": "escalate_to_human", 
+     "description": "Escalate to a human agent with a structured handoff summary.",
      "input_schema": {"type": "object", "properties": {"reason": {"type": "string"}}, "required": ["reason"]}},
 ]
 # spine/agent.py — add a prerequisite gate around tool execution
@@ -57,9 +66,12 @@ def run(user_msg):
     return resp
 
 def gate(name, tool_input):
-    """Block refunds until identity is verified. Returns (allowed, message)."""
     if name == "process_refund" and not STATE["verified_customer_id"]:
-        return False, "BLOCKED: call get_customer to verify identity before any refund."
+        return False, {"isError": True, "errorCategory": "business", "isRetryable": False,
+                       "message": "Identity not verified; run get_customer first."}
+    if name == "process_refund" and tool_input.get("amount", 0) > 500:
+        return False, {"isError": True, "errorCategory": "business", "isRetryable": False,
+                       "message": "Refund exceeds $500 policy; escalate to human."}
     return True, None
 
 def guarded_execute(name, tool_input):
