@@ -26,6 +26,20 @@ TOOLS = [
 ]
 # spine/agent.py — add a prerequisite gate around tool execution
 STATE = {"verified_customer_id": None}   # module-level case state for now
+CASE_FACTS = {}   # transactional facts, never summarized away
+
+def update_case_facts(name, result):
+    if name == "get_customer": CASE_FACTS["customer_id"] = result.get("customer_id")
+    if name == "lookup_order":
+        CASE_FACTS.update({k: result.get(k) for k in ("order_id", "amount", "status")})
+
+RELEVANT = {"lookup_order": {"order_id", "amount", "status", "date", "customer_id"}}
+def trim(name, result):
+    keep = RELEVANT.get(name)
+    return {k: v for k, v in result.items() if k in keep} if keep else result
+
+def case_facts_prompt():
+    return "CASE FACTS (persistent): " + "; ".join(f"{k}={v}" for k, v in CASE_FACTS.items())
 
 
 load_dotenv()                    # reads .env before the client is created
@@ -50,7 +64,7 @@ def fake_execute(name, tool_input):
 
 def run(user_msg):
     messages = [{"role": "user", "content": user_msg}]
-    resp = client.messages.create(model="claude-sonnet-4-5", max_tokens=1024, tools=TOOLS, messages=messages)
+    resp = client.messages.create(model="claude-sonnet-4-5", max_tokens=1024, tools=TOOLS, messages=messages, system=case_facts_prompt())
     while resp.stop_reason == "tool_use":                        # ← THE ONE RULE
         results = []
         for b in resp.content:
@@ -58,10 +72,12 @@ def run(user_msg):
                 continue
             raw = guarded_execute(b.name, b.input)
             result = normalize_result(b.name, raw)
+            result = trim(b.name, result)
+            update_case_facts(b.name, result)
             results.append({"type": "tool_result", "tool_use_id": b.id, "content": str(result)})
         messages.append({"role": "assistant", "content": resp.content})
         messages.append({"role": "user", "content": results})
-        resp = client.messages.create(model="claude-sonnet-4-5", max_tokens=1024, tools=TOOLS, messages=messages)
+        resp = client.messages.create(model="claude-sonnet-4-5", max_tokens=1024, tools=TOOLS, messages=messages, system=case_facts_prompt())
     print("FINAL:", "".join(b.text for b in resp.content if b.type == "text"))
     return resp
 
