@@ -90,6 +90,13 @@ def gate(name, tool_input):
                        "message": "Refund exceeds $500 policy; escalate to human."}
     return True, None
 
+def should_escalate(msg, made_progress, policy_covers, multiple_matches):
+    if "speak to a human" in msg.lower(): return "explicit_request"   # honor immediately
+    if not policy_covers:                 return "policy_gap"
+    if not made_progress:                 return "no_progress"
+    if multiple_matches:                  return "need_identifiers"    # ask, don't pick
+    return None   # NOTE: no sentiment check, no confidence threshold — those are proxies
+
 def guarded_execute(name, tool_input):
     allowed, msg = gate(name, tool_input)
     if not allowed:
