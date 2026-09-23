@@ -19,6 +19,12 @@ def build_options():
         },
     )
 
+def finding(claim, source_url, excerpt, pub_date):
+    return {"claim": claim, "source": source_url, "excerpt": excerpt, "date": pub_date}
+
+def annotate_conflict(a, b):   # two credible sources disagree → annotate, don't pick
+    return {"conflict": True, "values": [a, b], "note": "sources disagree; coordinator to reconcile"}
+
 def subagent_error(failure, query, partial):
     return {"isError": True, "failure": failure, "attempted_query": query,
             "partial_results": partial, "alternatives": ["retry narrower", "try cached source"]}

@@ -16,3 +16,10 @@ REFUND_EXTRACT_TOOL = {
     },
 }
 # tool_choice: {"type":"tool","name":"extract_refund_request"}  ← force THIS extraction
+
+# spine/extract.py — route by calibrated confidence (threshold from a labeled set)
+REVIEW_THRESHOLD = 0.85   # derived from calibration, NOT guessed
+def route_for_review(extraction):
+    conf = extraction.get("field_confidence", {})
+    low = [f for f, c in conf.items() if c < REVIEW_THRESHOLD]
+    return {"needs_human": bool(low) or extraction.get("conflict_detected"), "low_fields": low}
