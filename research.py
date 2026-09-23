@@ -19,6 +19,10 @@ def build_options():
         },
     )
 
+def subagent_error(failure, query, partial):
+    return {"isError": True, "failure": failure, "attempted_query": query,
+            "partial_results": partial, "alternatives": ["retry narrower", "try cached source"]}
+
 async def main():
     async for msg in query(
         prompt="Research renewable energy adoption broadly (solar, wind, hydro, and others). "
